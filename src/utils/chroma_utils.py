@@ -5,6 +5,7 @@ from collections.abc import Iterable, Iterator, Mapping
 from pathlib import Path
 from typing import Any
 
+import pandas as pd
 from chromadb.utils.embedding_functions import OpenAIEmbeddingFunction
 
 from src.config.settings import settings
@@ -79,7 +80,8 @@ def populate_collection_from_tsv(
                     "rarity": row.get("rarity"),
                     "release_date": row.get("release_date"),
                     "tags": row.get("tags"),
-                    "embedding_model": metadata.get("embedding_model") or settings.embeddings_model,
+                    "embedding_model": metadata.get("embedding_model")
+                    or settings.embeddings_model,
                 }
             )
 
@@ -142,9 +144,97 @@ def get_collection_with_embedding(
     try:
         return client.get_collection(name=name, embedding_function=embedding_fn)
     except ValueError as exc:
-        # If a collection already has an embedding function configured server-side,
-        # requesting a different one raises a conflict. In that case, return the
-        # existing collection without overriding its embedding function.
         if "embedding function already exists" in str(exc).lower():
             return client.get_collection(name=name)
         raise
+
+
+# ---- Reporting helpers -----------------------------------------------------
+
+ROOT = Path(__file__).resolve().parents[2]
+MAX_FIELD_LEN = 80
+
+
+def _truncate(value: str, max_len: int = MAX_FIELD_LEN) -> str:
+    """Truncate long strings for cleaner console output."""
+
+    if len(value) <= max_len:
+        return value
+    return value[: max_len - 1] + "."
+
+
+def report(client: Any) -> str:
+    """
+    Build a text report summarizing collections for a given Chroma client.
+
+    Returns the formatted report string (also suitable for printing).
+    """
+
+    collections = client.list_collections()
+    if not collections:
+        return "No collections found."
+
+    def _parse_dimension(value: object) -> int | None:
+        try:
+            return int(value)
+        except (TypeError, ValueError):
+            return None
+
+    rows = []
+    for col in collections:
+        try:
+            coll = get_collection_with_embedding(client, name=col.name)
+        except Exception as exc:  # noqa: BLE001
+            rows.append(
+                {
+                    "name": _truncate(col.name),
+                    "count": f"error: {exc}",
+                    "dimension": None,
+                    "provider": "",
+                    "model": "",
+                    "variant": "",
+                    "source": "",
+                }
+            )
+            continue
+
+        metadata = col.metadata or {}
+        provider = metadata.get("provider") or ""
+        embedding_model = metadata.get("embedding_model") or ""
+        variant = metadata.get("variant") or ""
+        source_raw = metadata.get("source") or ""
+        dimension = _parse_dimension(getattr(col, "dimension", None))
+        if dimension is None and isinstance(metadata, dict):
+            dimension = _parse_dimension(
+                metadata.get("dimension") or metadata.get("embedding_dimensions")
+            )
+        if dimension is None:
+            try:
+                dimension = _parse_dimension(
+                    getattr(coll.get_model(), "dimension", None)
+                )
+            except Exception:
+                dimension = None
+
+        source_rel = source_raw
+        if isinstance(source_raw, str) and source_raw:
+            source_path = Path(source_raw)
+            try:
+                source_rel = str(source_path.resolve().relative_to(ROOT))
+            except Exception:
+                source_rel = source_raw
+
+        rows.append(
+            {
+                "name": _truncate(col.name),
+                "count": coll.count(),
+                "dimension": dimension,
+                "provider": _truncate(provider),
+                "model": _truncate(embedding_model),
+                "variant": _truncate(variant),
+                "source": _truncate(source_rel),
+            }
+        )
+
+    df = pd.DataFrame(rows)
+    return "Collections overview:\n" + df.to_string(index=False)

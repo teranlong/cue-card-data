@@ -16,19 +16,35 @@ Chroma-backed vector store for card data (TSV) plus a handful of maintenance job
 - Stop Chroma: `make stop`
 
 ## Collections
-- Create/refresh (uses `src/jobs/create_chroma_collections.py` defaults):  
-  `make create_collections ARGS="--rebuild"`  # drop/recreate first  
-  (omit `--rebuild` to upsert/ensure only)
+- Collections are defined in `chroma.config.json` under the top-level `chroma.collections` array.
+- Create/refresh from config: `make create_collections` (add `ARGS="--rebuild"` to drop/recreate first, or `ARGS="--config path/to/file.json"` to point at a different config).
+- Example `chroma.config.json` entry:
+
+```json
+{
+  "chroma": {
+    "collections": [
+      {
+        "source_path": "data/source/cards_v1.tsv",
+        "provider": "openai",
+        "embedding_model": "text-embedding-3-small",
+        "variant": "v1",
+        "batch_size": 200
+      }
+    ]
+  }
+}
+```
 - Remove a collection: `make remove ARGS="<collection-name>"`  
   Remove all collections: `make remove ARGS="--all"`
 
 ## Reporting & queries
-- Count check vs TSV: `make report ARGS="--collection <name> --source data/source/cards_v1.tsv"`  
-- Query a collection: `make query COLLECTION=<name> QUERY="search text"`
+- Count check vs TSV: `make report` (defaults to the first collection in `chroma.config.json`; override with `ARGS="--collection <name> --source <tsv>"`)  
+- Query a collection: `make query QUERY="search text"` (defaults to the first collection in `chroma.config.json`; override with `COLLECTION=<name>`)
 
 ## Linting
 - `make lint` (runs `ruff` and `mypy` via `uv run`)
 
 ## Notes
 - Jobs can also be run directly, e.g. `uv run python -m src.jobs.create_chroma_collections`.
-- Default collection/model settings live in `src/config/settings.py`.
+- Default collection/model settings live in `chroma.config.json`; service host/port live in `src/config/settings.py`.

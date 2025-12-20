@@ -1,0 +1,16 @@
+{
+  "chroma": {
+    "collections": [
+      {
+        "source_path": "data/source/cards_small.tsv",
+        "provider": "openai",
+        "embedding_model": "text-embedding-3-small",
+        "variant": "v1",
+        "batch_size": 200,
+        "metadata": {
+          "domain": "cards"
+        }
+      }
+    ]       
+  }
+}

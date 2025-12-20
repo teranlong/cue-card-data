@@ -3,38 +3,61 @@
 from __future__ import annotations
 
 import argparse
+import os
 import pathlib
-import sys
 from collections.abc import Sequence
+from pathlib import Path
 
 import chromadb
-from chromadb.config import Settings as ChromaSettings
 from openai import OpenAI
 
-ROOT = pathlib.Path(__file__).resolve().parents[1]
-if str(ROOT) not in sys.path:
-    sys.path.insert(0, str(ROOT))
-
+from src.config.chroma_config import get_default_collection_and_source  # noqa: E402
 from src.config.settings import settings  # noqa: E402
-from src.utils.chroma import get_collection_with_embedding  # noqa: E402
+
+DEFAULT_CONFIG_PATH = Path("chroma.config.json")
+
+
+def _require_non_empty(value: str, label: str) -> str:
+    cleaned = value.strip()
+    if not cleaned:
+        raise argparse.ArgumentTypeError(f"{label} cannot be empty.")
+    return cleaned
+
+
+def _positive_int(value: str) -> int:
+    try:
+        parsed = int(value)
+    except ValueError as exc:  # noqa: B904
+        raise argparse.ArgumentTypeError("limit must be an integer.") from exc
+    if parsed < 1:
+        raise argparse.ArgumentTypeError("limit must be at least 1.")
+    return parsed
 
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Query the Chroma collection.")
     parser.add_argument(
         "query",
+        type=lambda value: _require_non_empty(value, "query text"),
         help="Search text to query.",
     )
     parser.add_argument(
         "--collection",
-        default=settings.default_collection_name,
-        help="Collection name to query (default: configured default).",
+        type=lambda value: _require_non_empty(value, "collection name"),
+        default=None,
+        help="Collection name to query (defaults to first collection in config).",
     )
     parser.add_argument(
         "--limit",
-        type=int,
+        type=_positive_int,
         default=5,
         help="Number of results to return.",
+    )
+    parser.add_argument(
+        "--config",
+        type=Path,
+        default=DEFAULT_CONFIG_PATH,
+        help="Path to Chroma collections config file (JSON). Defaults to chroma.config.json if present.",
     )
     return parser.parse_args()
 
@@ -52,22 +75,37 @@ def embed_texts(openai_client: OpenAI, texts: Sequence[str]) -> list[list[float]
 def main() -> None:
     args = parse_args()
     query = args.query
-    openai_client = OpenAI(api_key=settings.openai_api_key, base_url=settings.embeddings_api_base)
 
-    client = chromadb.Client(
-        settings=ChromaSettings(
-            chroma_api_impl="chromadb.api.fastapi.FastAPI",
-            chroma_server_host=settings.chroma_host,
-            chroma_server_http_port=settings.chroma_port,
-            anonymized_telemetry=False,
-        )
-    )
+    key = settings.chroma_openai_api_key or settings.openai_api_key
+    if key:
+        os.environ.setdefault("OPENAI_API_KEY", key)
+        os.environ.setdefault("CHROMA_OPENAI_API_KEY", key)
 
-    collection = get_collection_with_embedding(client, name=args.collection)
+    client = chromadb.HttpClient(host=settings.chroma_host, port=settings.chroma_port)
 
-    query_embeddings = embed_texts(openai_client, [query])
-    result = collection.query(query_embeddings=query_embeddings, n_results=max(1, args.limit))
+    collection_name = args.collection
+    if collection_name is None:
+        collection_name, _ = get_default_collection_and_source(args.config)
+        if not collection_name:
+            raise SystemExit(
+                "No collection specified and no default found in config. "
+                "Pass --collection to choose one."
+            )
+    elif isinstance(collection_name, str) and collection_name.isdigit():
+        collections = client.list_collections()
+        index_raw = int(collection_name)
+        index = index_raw - 1 if index_raw > 0 else 0
+        if index < 0 or index >= len(collections):
+            raise SystemExit(
+                f"Collection index {index_raw} is out of range (found {len(collections)} collection(s))."
+            )
+        collection_name = collections[index].name
 
+    collection = client.get_collection(name=collection_name)
+
+    result = collection.query(query_texts=[query], n_results=args.limit)
+
+    print(f"Collection: {collection_name}")
     print(f"Query: {query}")
     ids = result.get("ids", [[]])[0]
     distances = result.get("distances", [[]])[0]
@@ -80,5 +118,5 @@ def main() -> None:
         print(f"{rank}. id={card_id} name={name} distance={dist}")
 
 
-if __name__ == "__main__":
+if __name__ == "__main__":  #
     main()

@@ -13,7 +13,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "collection",
         nargs="?",
-        help="Name of the collection to delete.",
+        help="Name or 1-based index of the collection to delete.",
     )
     parser.add_argument(
         "--all",
@@ -43,11 +43,25 @@ def main() -> None:
                 print(f"Failed to delete collection '{col.name}': {exc}")
         return
 
+    collections = client.list_collections()
+    if not collections:
+        print("No collections found.")
+        return
+
+    target_name = args.collection
+    if target_name.isdigit():
+        idx = int(target_name)
+        if idx < 1 or idx > len(collections):
+            print(f"Index {idx} is out of range. There are {len(collections)} collections.")
+            return
+        target_name = collections[idx - 1].name
+        print(f"Deleting collection #{idx}: '{target_name}'")
+
     try:
-        client.delete_collection(name=args.collection)
-        print(f"Deleted collection '{args.collection}'.")
+        client.delete_collection(name=target_name)
+        print(f"Deleted collection '{target_name}'.")
     except Exception as exc:  # noqa: BLE001
-        print(f"Failed to delete collection '{args.collection}': {exc}")
+        print(f"Failed to delete collection '{target_name}': {exc}")
 
 
 if __name__ == "__main__":
