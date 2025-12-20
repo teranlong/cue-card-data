@@ -9,7 +9,7 @@ from pathlib import Path
 import chromadb
 from src.config.chroma_config import ChromaConfig, CollectionConfig, load_chroma_config
 from src.config.settings import settings
-from utils.chroma_utils import populate_collection_from_tsv
+from utils.chroma_utils import populate_collection_from_tsv, report
 from chromadb.utils.embedding_functions import OpenAIEmbeddingFunction
 
 DEFAULT_CONFIG_PATH = Path("chroma.config.json")
@@ -125,6 +125,9 @@ def main() -> None:
             collection_cfg=collection_cfg,
             rebuild=args.rebuild,
         )
+
+    print("\n=== Collections summary ===")
+    print(report(client))
 
 
 if __name__ == "__main__":
