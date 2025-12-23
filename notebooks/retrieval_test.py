@@ -27,7 +27,7 @@ from pprint import pprint
 import chromadb
 from chromadb.errors import InvalidArgumentError
 
-from src.utils.chroma_utils import repor
+# from src.utils.chroma_utils import report
 
 # %%
 client = chromadb.HttpClient(host="localhost", port=8000)
