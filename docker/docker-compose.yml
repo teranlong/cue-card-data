@@ -16,3 +16,22 @@ services:
       - ALLOW_RESET=true
     volumes:
       - ./chroma/data_store:/data
+
+  card-data-postgres-001:
+    build:
+      context: ./postgres
+    container_name: card-data-postgres-001
+    restart: unless-stopped
+    environment:
+      - POSTGRES_USER=${POSTGRES_USER:-cuecards}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-cuecards}
+      - POSTGRES_DB=${POSTGRES_DB:-cuecards}
+    ports:
+      - "${POSTGRES_PORT:-56432}:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./postgres/initdb:/docker-entrypoint-initdb.d
+      - ../data/source/cards_v1.tsv:/docker-entrypoint-initdb.d/cards_v1.tsv:ro
+
+volumes:
+  postgres_data:
