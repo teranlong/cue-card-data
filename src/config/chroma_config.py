@@ -9,6 +9,10 @@ from src.utils.chroma_utils import build_embedding_function
 from src.utils.collections import build_collection_name
 
 
+ROOT_DIR = Path(__file__).resolve().parents[2]
+DEFAULT_CHROMA_CONFIG_PATH = ROOT_DIR / "docker/chroma/chroma.config.json"
+
+
 @dataclass(slots=True)
 class CollectionConfig:
     """Configuration for a single Chroma collection."""
@@ -104,7 +108,9 @@ class ChromaConfig:
     collections: list[CollectionConfig] = field(default_factory=list)
 
     @classmethod
-    def from_path(cls, config_path: Path) -> "ChromaConfig":
+    def from_path(cls, config_path: Path | str | None = None) -> "ChromaConfig":
+        config_path = resolve_config_path(config_path)
+
         if not config_path.exists():
             raise FileNotFoundError(f"Chroma config not found: {config_path}")
 
@@ -121,20 +127,32 @@ class ChromaConfig:
             raise ValueError("'collections' must be a list inside 'chroma'.")
 
         collections = [
-            CollectionConfig.from_dict(raw, base_dir=config_path.parent)
+            CollectionConfig.from_dict(raw, base_dir=ROOT_DIR)
             for raw in collections_data
         ]
         return cls(collections=collections)
 
 
-def load_chroma_config(config_path: Path) -> ChromaConfig:
+def resolve_config_path(config_path: Path | str | None = None) -> Path:
+    """Return an absolute path to the Chroma config, defaulting to docker/chroma/chroma.config.json."""
+
+    if config_path is None:
+        return DEFAULT_CHROMA_CONFIG_PATH
+
+    resolved = Path(config_path)
+    if not resolved.is_absolute():
+        resolved = (ROOT_DIR / resolved).resolve()
+    return resolved
+
+
+def load_chroma_config(config_path: Path | str | None = None) -> ChromaConfig:
     """Convenience wrapper for loading a Chroma config from JSON."""
 
     return ChromaConfig.from_path(config_path)
 
 
 def get_default_collection_and_source(
-    config_path: Path,
+    config_path: Path | str | None = None,
 ) -> tuple[str | None, str | None]:
     """
     Return the first collection name and source path from config, or (None, None).

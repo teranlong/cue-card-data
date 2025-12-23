@@ -214,4 +214,5 @@ __marimo__/
 
 # Chroma persistent data
 docker/chroma/data/
+docker/chroma/data_store/
 .vscode/settings.json

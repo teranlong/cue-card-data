@@ -43,6 +43,24 @@ def _build_document_text(row: Row) -> str:
     )
 
 
+def _parse_numeric_fields(row: Row) -> dict[str, Any]:
+    """Return only numeric fields that parse cleanly."""
+
+    parsed: dict[str, Any] = {}
+    numeric_specs = (("energy", int), ("power", int), ("ppe", float))
+
+    for key, caster in numeric_specs:
+        raw = row.get(key)
+        if raw in (None, ""):
+            continue
+        try:
+            parsed[key] = caster(str(raw))
+        except (TypeError, ValueError):
+            continue
+
+    return parsed
+
+
 def populate_collection_from_tsv(
     collection: Any,
     batch_size: int = 200,
@@ -66,24 +84,22 @@ def populate_collection_from_tsv(
         metadatas: list[dict[str, Any]] = []
 
         for idx, row in enumerate(batch, total):
+            # url	name	album	collection	number	type	rarity	release_date	energy	power	ppe	ability_name	ability_description	tags
             doc_id = row.get("url") or row.get("number") or f"row-{idx}"
             ids.append(str(doc_id))
             documents.append(_build_document_text(row))
-            metadatas.append(
-                {
-                    "source": row.get("url"),
-                    "name": row.get("name"),
-                    "album": row.get("album"),
-                    "collection": row.get("collection"),
-                    "number": row.get("number"),
-                    "type": row.get("type"),
-                    "rarity": row.get("rarity"),
-                    "release_date": row.get("release_date"),
-                    "tags": row.get("tags"),
-                    "embedding_model": metadata.get("embedding_model")
-                    or settings.embeddings_model,
-                }
-            )
+            metadata = {
+                "source": row.get("url"),
+                "name": row.get("name"),
+                "album": row.get("album"),
+                "collection": row.get("collection"),
+                "type": row.get("type"),
+                "rarity": row.get("rarity"),
+                "release_date": row.get("release_date"),
+                "tags": row.get("tags"),
+            }
+            metadata.update(_parse_numeric_fields(row))
+            metadatas.append(metadata)
 
         # Rely on collection's embedding_function; do not pass precomputed embeddings.
         collection.add(ids=ids, documents=documents, metadatas=metadatas)

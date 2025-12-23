@@ -16,9 +16,9 @@ Chroma-backed vector store for card data (TSV) plus a handful of maintenance job
 - Stop Chroma: `make stop`
 
 ## Collections
-- Collections are defined in `chroma.config.json` under the top-level `chroma.collections` array.
+- Collections are defined in `docker/chroma/chroma.config.json` under the top-level `chroma.collections` array.
 - Create/refresh from config: `make create_collections` (add `ARGS="--rebuild"` to drop/recreate first, or `ARGS="--config path/to/file.json"` to point at a different config).
-- Example `chroma.config.json` entry:
+- Example `docker/chroma/chroma.config.json` entry:
 
 ```json
 {
@@ -39,12 +39,12 @@ Chroma-backed vector store for card data (TSV) plus a handful of maintenance job
   Remove all collections: `make remove ARGS="--all"`
 
 ## Reporting & queries
-- Count check vs TSV: `make report` (defaults to the first collection in `chroma.config.json`; override with `ARGS="--collection <name> --source <tsv>"`)  
-- Query a collection: `make query QUERY="search text"` (defaults to the first collection in `chroma.config.json`; override with `COLLECTION=<name>`)
+- Count check vs TSV: `make report` (defaults to the first collection in `docker/chroma/chroma.config.json`; override with `ARGS="--collection <name> --source <tsv>"`)  
+- Query a collection: `make query QUERY="search text"` (defaults to the first collection in `docker/chroma/chroma.config.json`; override with `COLLECTION=<name>`)
 
 ## Linting
 - `make lint` (runs `ruff` and `mypy` via `uv run`)
 
 ## Notes
 - Jobs can also be run directly, e.g. `uv run python -m src.jobs.create_chroma_collections`.
-- Default collection/model settings live in `chroma.config.json`; service host/port live in `src/config/settings.py`.
+- Default collection/model settings live in `docker/chroma/chroma.config.json`; service host/port live in `src/config/settings.py`.

@@ -7,12 +7,16 @@ import os
 from pathlib import Path
 
 import chromadb
-from src.config.chroma_config import ChromaConfig, CollectionConfig, load_chroma_config
+from chromadb.api import ClientAPI
+from chromadb.utils.embedding_functions import OpenAIEmbeddingFunction
+from src.config.chroma_config import (
+    DEFAULT_CHROMA_CONFIG_PATH,
+    ChromaConfig,
+    CollectionConfig,
+    load_chroma_config,
+)
 from src.config.settings import settings
 from utils.chroma_utils import populate_collection_from_tsv, report
-from chromadb.utils.embedding_functions import OpenAIEmbeddingFunction
-
-DEFAULT_CONFIG_PATH = Path("chroma.config.json")
 
 
 def parse_args() -> argparse.Namespace:
@@ -22,8 +26,8 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--config",
         type=Path,
-        default=DEFAULT_CONFIG_PATH,
-        help="Path to Chroma collections config file (JSON). Defaults to chroma.config.json.",
+        default=DEFAULT_CHROMA_CONFIG_PATH,
+        help="Path to Chroma collections config file (JSON). Defaults to docker/chroma/chroma.config.json.",
     )
     parser.add_argument(
         "--rebuild",
@@ -53,7 +57,7 @@ def _ensure_openai_key() -> None:
 
 
 def _create_or_refresh_collection(
-    client: chromadb.HttpClient,
+    client: ClientAPI,
     collection_cfg: CollectionConfig,
     rebuild: bool,
 ) -> int:
@@ -112,7 +116,9 @@ def _create_or_refresh_collection(
 def main() -> None:
     args = parse_args()
 
-    client = chromadb.HttpClient(host=settings.chroma_host, port=settings.chroma_port)
+    client: ClientAPI = chromadb.HttpClient(
+        host=settings.chroma_host, port=settings.chroma_port
+    )
 
     chroma_config: ChromaConfig = load_chroma_config(args.config)
     if not chroma_config.collections:
